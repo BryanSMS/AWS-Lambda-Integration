@@ -1,0 +1,12 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Node
+node_modules/
+
+# Paquetes generados
+*.zip
+build/
