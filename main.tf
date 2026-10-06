@@ -57,3 +57,48 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
     }
   }
 }
+
+resource "aws_sqs_queue" "dlq" {
+  name                      = "${local.name_prefix}-image-dlq"
+  message_retention_seconds = 1209600 # 14 dias
+}
+resource "aws_sqs_queue" "main" {
+  name                       = "${local.name_prefix}-image-queue"
+  visibility_timeout_seconds = 360   # 6x el timeout de la crop-lambda (60 s)
+  message_retention_seconds  = 86400 # 1 dia
+  receive_wait_time_seconds  = 20    # long polling
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.dlq.arn
+    maxReceiveCount     = 3
+  })
+}
+data "aws_iam_policy_document" "sqs_allow_s3" {
+  statement {
+    sid     = "AllowS3SendMessage"
+    effect  = "Allow"
+    actions = ["sqs:SendMessage"]
+    principals {
+      type        = "Service"
+      identifiers = ["s3.amazonaws.com"]
+    }
+    resources = [aws_sqs_queue.main.arn]
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_s3_bucket.images.arn]
+    }
+  }
+}
+resource "aws_sqs_queue_policy" "main" {
+  queue_url = aws_sqs_queue.main.id
+  policy    = data.aws_iam_policy_document.sqs_allow_s3.json
+}
+resource "aws_s3_bucket_notification" "images" {
+  bucket = aws_s3_bucket.images.id
+  queue {
+    queue_arn     = aws_sqs_queue.main.arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "uploads/"
+  }
+  depends_on = [aws_sqs_queue_policy.main]
+}
