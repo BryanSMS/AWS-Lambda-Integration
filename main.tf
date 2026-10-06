@@ -102,3 +102,67 @@ resource "aws_s3_bucket_notification" "images" {
   }
   depends_on = [aws_sqs_queue_policy.main]
 }
+
+data "aws_iam_policy_document" "lambda_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+resource "aws_iam_role" "upload" {
+  name               = "${local.name_prefix}-upload-lambda-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+}
+resource "aws_iam_role_policy_attachment" "upload_logs" {
+  role       = aws_iam_role.upload.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+data "aws_iam_policy_document" "upload_s3" {
+  statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.images.arn}/uploads/*"]
+  }
+}
+resource "aws_iam_role_policy" "upload_s3" {
+  name   = "s3-put-uploads"
+  role   = aws_iam_role.upload.id
+  policy = data.aws_iam_policy_document.upload_s3.json
+}
+resource "aws_iam_role" "crop" {
+  name               = "${local.name_prefix}-crop-lambda-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+}
+resource "aws_iam_role_policy_attachment" "crop_logs" {
+  role       = aws_iam_role.crop.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+data "aws_iam_policy_document" "crop_access" {
+  statement {
+    sid       = "ReadOriginals"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.images.arn}/uploads/*"]
+  }
+  statement {
+    sid       = "WriteProcessed"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.images.arn}/processed/*"]
+  }
+  statement {
+    sid = "ConsumeQueue"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:ChangeMessageVisibility"
+    ]
+    resources = [aws_sqs_queue.main.arn]
+  }
+}
+resource "aws_iam_role_policy" "crop_access" {
+  name   = "crop-s3-and-sqs"
+  role   = aws_iam_role.crop.id
+  policy = data.aws_iam_policy_document.crop_access.json
+}
