@@ -16,3 +16,8 @@ output "upload_url" {
   description = "Endpoint para subir imágenes"
   value       = "${aws_apigatewayv2_api.upload.api_endpoint}/upload"
 }
+
+output "dlq_alarm_name" {
+  description = "Alarma de la DLQ"
+  value       = aws_cloudwatch_metric_alarm.dlq_messages.alarm_name
+}

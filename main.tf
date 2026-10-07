@@ -297,3 +297,29 @@ resource "aws_lambda_permission" "apigw_upload" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.upload.execution_arn}/*/*"
 }
+
+resource "aws_sns_topic" "alerts" {
+  name = "${local.name_prefix}-alerts"
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  count     = var.alert_email == "" ? 0 : 1
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
+resource "aws_cloudwatch_metric_alarm" "dlq_messages" {
+  alarm_name          = "${local.name_prefix}-dlq-messages-alarm"
+  alarm_description   = "Hay mensajes en la DLQ: alguna imagen fallo 3 veces"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = aws_sqs_queue.dlq.name }
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+}

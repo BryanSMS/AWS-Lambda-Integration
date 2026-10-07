@@ -21,3 +21,9 @@ variable "environment" {
     error_message = "environment debe ser dev, qa o prod."
   }
 }
+
+variable "alert_email" {
+  description = "Correo que recibe la alerta cuando hay mensajes en la DLQ"
+  type        = string
+  default     = ""
+}
