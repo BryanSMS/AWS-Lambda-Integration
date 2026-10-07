@@ -11,3 +11,8 @@ output "queue_url" {
   description = "URL de la cola principal"
   value       = aws_sqs_queue.main.id
 }
+
+output "upload_url" {
+  description = "Endpoint para subir imágenes"
+  value       = "${aws_apigatewayv2_api.upload.api_endpoint}/upload"
+}
