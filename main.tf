@@ -166,3 +166,33 @@ resource "aws_iam_role_policy" "crop_access" {
   role   = aws_iam_role.crop.id
   policy = data.aws_iam_policy_document.crop_access.json
 }
+
+data "archive_file" "upload" {
+  type        = "zip"
+  source_dir  = "${path.module}/lambdas/upload"
+  output_path = "${path.module}/build/upload.zip"
+}
+resource "aws_cloudwatch_log_group" "upload" {
+  name              = "/aws/lambda/${local.name_prefix}-upload"
+  retention_in_days = 14
+}
+resource "aws_lambda_function" "upload" {
+  function_name    = "${local.name_prefix}-upload"
+  role             = aws_iam_role.upload.arn
+  runtime          = "nodejs20.x"
+  handler          = "index.handler"
+  memory_size      = 256
+  timeout          = 30
+  filename         = data.archive_file.upload.output_path
+  source_code_hash = data.archive_file.upload.output_base64sha256
+  environment {
+    variables = {
+      S3_BUCKET     = aws_s3_bucket.images.id
+      UPLOAD_PREFIX = "uploads/"
+    }
+  }
+  depends_on = [
+    aws_cloudwatch_log_group.upload,
+    aws_iam_role_policy_attachment.upload_logs,
+  ]
+}
