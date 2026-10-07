@@ -1,0 +1,9 @@
+{
+    "name": "crop-lambda",
+    "version": "1.0.0",
+    "private": true,
+    "main": "index.js",
+    "dependencies": {
+        "sharp": "^0.33.5"
+    }
+}
